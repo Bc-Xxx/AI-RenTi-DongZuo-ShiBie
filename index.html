@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>围栏安防检测平台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", sans-serif; background: #0f1318;
+         color: #dfe6ee; display: flex; height: 100vh; overflow: hidden; }
+  header { height: 54px; background: #161c24; border-bottom: 1px solid #26303c;
+           display: flex; align-items: center; padding: 0 18px; gap: 22px;
+           position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
+  header .logo { font-size: 16px; font-weight: bold; display: flex;
+                 align-items: center; gap: 10px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555;
+         display: inline-block; }
+  .dot.on { background: #3ddc74; box-shadow: 0 0 6px #3ddc74; }
+  .dot.off { background: #e5484d; }
+  .tabs { display: flex; gap: 8px; margin-left: auto; }
+  .tab { padding: 7px 16px; border-radius: 8px; background: #1d2530; cursor: pointer;
+         font-size: 13px; border: 1px solid transparent; user-select: none;
+         display: flex; align-items: center; gap: 8px; }
+  .tab:hover { border-color: #3a4756; }
+  .tab.active { border-color: #4a90e2; background: #1f3450; }
+  .tab .sw { width: 30px; height: 16px; border-radius: 8px; background: #39434f;
+             position: relative; transition: .15s; }
+  .tab .sw::after { content: ""; position: absolute; width: 12px; height: 12px;
+             border-radius: 50%; background: #9fb0c2; top: 2px; left: 2px;
+             transition: .15s; }
+  .tab.on .sw { background: #2f7cd3; }
+  .tab.on .sw::after { left: 16px; background: #fff; }
+  .tab .gear { font-size: 14px; opacity: .75; }
+  .tab .gear:hover { opacity: 1; }
+
+  main { position: absolute; top: 54px; bottom: 0; left: 0; right: 340px; }
+  .stage { width: 100%; height: 100%; background: #000; display: flex;
+           align-items: center; justify-content: center; overflow: hidden;
+           position: relative; }
+  .stage img { max-width: 100%; max-height: 100%; cursor: zoom-in; }
+  .stage.full img { cursor: zoom-out; }
+  body.noright main { right: 0; }
+  .stage .hint { position: absolute; top: 10px; left: 12px; font-size: 12px;
+           color: #ffe27a; background: rgba(0,0,0,.65); padding: 5px 10px;
+           border-radius: 6px; display: none; z-index: 5; }
+  .switch { width: 42px; height: 22px; border-radius: 11px; background: #39434f;
+            position: relative; cursor: pointer; transition: .15s;
+            display: inline-block; flex: none; }
+  .switch::after { content: ""; position: absolute; width: 18px; height: 18px;
+            border-radius: 50%; background: #9fb0c2; top: 2px; left: 2px;
+            transition: .15s; }
+  .switch.on { background: #2f7cd3; }
+  .switch.on::after { left: 22px; background: #fff; }
+  #drawCanvas { position: absolute; pointer-events: none; display: none; z-index: 4; }
+
+  aside { position: fixed; top: 54px; right: 0; bottom: 0; width: 340px;
+          background: #161c24; border-left: 1px solid #26303c; display: flex;
+          flex-direction: column; z-index: 20; }
+  body.noright aside { display: none; }
+  aside .h { padding: 12px 16px; font-size: 13px; color: #8fb7ff;
+             border-bottom: 1px solid #26303c; display: flex;
+             justify-content: space-between; align-items: center; }
+  #alerts { flex: 1; overflow-y: auto; padding: 10px; }
+  .alert { display: flex; gap: 10px; background: #1d2530; border-radius: 8px;
+           padding: 8px; margin-bottom: 8px; border-left: 4px solid #555; }
+  .alert.climb, .alert.throw { border-left-color: #e5484d; }
+  .alert.climb_warn { border-left-color: #f5a623; }
+  .alert.smoking { border-left-color: #b478f0; }
+  .alert.smoking .n { color: #cf9df5; }
+  .alert img { width: 118px; height: 68px; object-fit: cover; border-radius: 4px;
+               cursor: pointer; }
+  .alert .meta { font-size: 12px; overflow: hidden; }
+  .alert .meta .t { color: #9aa7b5; margin-top: 4px; }
+  .alert .meta .n { font-weight: bold; font-size: 13px; }
+  .alert.climb .n, .alert.throw .n { color: #ff7b81; }
+  .alert.climb_warn .n { color: #ffc861; }
+  .empty { color: #5c6a7a; text-align: center; padding: 30px 0; font-size: 13px; }
+
+  /* 设置弹窗 */
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 40;
+          display: none; align-items: center; justify-content: center; }
+  .mask.show { display: flex; }
+  .dlg { width: 460px; max-width: 94vw; background: #1a212b; border: 1px solid #2d3947;
+         border-radius: 12px; padding: 20px 22px; max-height: 86vh; overflow-y: auto; }
+  .dlg h2 { font-size: 15px; margin-bottom: 14px; color: #cfe0ff; }
+  .dlg .close { float: right; cursor: pointer; color: #8fa0b3; font-size: 18px; }
+  .dlg .close:hover { color: #fff; }
+  .param { margin-bottom: 14px; }
+  .param .row { display: flex; justify-content: space-between; font-size: 13px;
+                margin-bottom: 5px; }
+  .param .val { color: #7ec9ff; font-family: Consolas, monospace; }
+  input[type=range] { width: 100%; accent-color: #4a90e2; }
+  .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+         font-size: 13px; }
+  .btn.primary { background: #2f7cd3; color: #fff; }
+  .btn.ghost { background: #232b36; color: #cfe0ff; border: 1px solid #39434f; }
+  .dlg .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .note { font-size: 12px; color: #8fa0b3; line-height: 1.7; margin-top: 4px; }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+           background: #2f6f3f; color: #fff; padding: 8px 18px; border-radius: 6px;
+           font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none;
+           z-index: 60; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">围栏安防检测平台 <span class="dot" id="dot"></span></div>
+  <div class="tabs">
+    <div class="tab" id="tab-climb">
+      <span class="sw"></span>攀爬检测
+      <span class="gear" title="设置">&#9881;</span>
+    </div>
+    <div class="tab" id="tab-throw">
+      <span class="sw"></span>抛物检测
+      <span class="gear" title="设置">&#9881;</span>
+    </div>
+    <div class="tab" id="tab-smoke">
+      <span class="sw"></span>抽烟检测
+      <span class="gear" title="设置">&#9881;</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stage" id="stage">
+    <img id="video" src="/api/stream" alt="实时画面">
+    <canvas id="drawCanvas"></canvas>
+    <div class="hint" id="drawHint">画框：左键加点（前两点=墙头线）· 右键撤销 · 双击完成</div>
+  </div>
+</main>
+
+<aside>
+  <div class="h">告警记录</div>
+  <div id="alerts"><div class="empty">暂无告警</div></div>
+</aside>
+
+<!-- 攀爬设置 -->
+<div class="mask" id="dlg-climb">
+  <div class="dlg">
+    <span class="close" onclick="closeDlg('dlg-climb')">&#10005;</span>
+    <h2>攀爬检测设置</h2>
+    <div class="param"><div class="row"><span>检测置信度阈值</span><span class="val" id="v-det_conf"></span></div>
+      <input type="range" id="det_conf" min="0.25" max="0.7" step="0.05"></div>
+    <div class="param"><div class="row"><span>人框最小高度（像素）</span><span class="val" id="v-min_person_h"></span></div>
+      <input type="range" id="min_person_h" min="20" max="200" step="5"></div>
+    <div class="param"><div class="row"><span>攀爬姿态持续帧数</span><span class="val" id="v-grip_frames"></span></div>
+      <input type="range" id="grip_frames" min="2" max="20" step="1"></div>
+    <div class="param"><div class="row"><span>姿态证据有效窗口（秒）</span><span class="val" id="v-posture_window"></span></div>
+      <input type="range" id="posture_window" min="2" max="20" step="1"></div>
+    <div class="param"><div class="row"><span>告警需姿态证据（0=夜间纯几何兜底）</span><span class="val" id="v-require_posture"></span></div>
+      <input type="range" id="require_posture" min="0" max="1" step="1"></div>
+    <div class="param"><div class="row"><span>画面显示黄框标定（隐藏后判定不受影响）</span>
+      <span class="switch" id="showBoxesSw" title="点击切换显示/隐藏"></span></div></div>
+    <div class="btns">
+      <button class="btn ghost" onclick="startDraw(); closeDlg('dlg-climb')">绘制/重画黄框</button>
+      <button class="btn ghost" onclick="clearBoxes()">清除全部黄框</button>
+      <button class="btn primary" onclick="closeDlg('dlg-climb')">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 抛物设置 -->
+<div class="mask" id="dlg-throw">
+  <div class="dlg">
+    <span class="close" onclick="closeDlg('dlg-throw')">&#10005;</span>
+    <h2>抛物检测设置</h2>
+    <div class="param"><div class="row"><span>检测置信度阈值</span><span class="val" id="v-det_conf2"></span></div>
+      <input type="range" id="det_conf2" min="0.25" max="0.7" step="0.05"></div>
+    <div class="param"><div class="row"><span>人框最小高度（像素）</span><span class="val" id="v-min_person_h2"></span></div>
+      <input type="range" id="min_person_h2" min="20" max="200" step="5"></div>
+    <div class="param"><div class="row"><span>手腕速度阈值（px/帧）</span><span class="val" id="v-spike"></span></div>
+      <input type="range" id="spike" min="10" max="150" step="5"></div>
+    <div class="note">检测项：布防区内人员 + 手腕速度尖峰 + 持物关联（背包/手提包/箱类在人框内标记"持物"）。</div>
+    <div class="btns">
+      <button class="btn primary" onclick="closeDlg('dlg-throw')">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 抽烟设置 -->
+<div class="mask" id="dlg-smoke">
+  <div class="dlg">
+    <span class="close" onclick="closeDlg('dlg-smoke')">&#10005;</span>
+    <h2>抽烟检测设置</h2>
+    <div class="param"><div class="row"><span>抽烟目标置信度阈值</span><span class="val" id="v-smoke_target_conf"></span></div>
+      <input type="range" id="smoke_target_conf" min="0.1" max="0.6" step="0.05"></div>
+    <div class="param"><div class="row"><span>连续确认帧数</span><span class="val" id="v-smoke_confirm_n"></span></div>
+      <input type="range" id="smoke_confirm_n" min="2" max="20" step="1"></div>
+    <div class="note">检测逻辑：烟头/吸烟目标连续 N 帧关联到同一个人身上才告警。
+      需要 smoke_best.pt 权重文件与本程序同目录；画面中红框+分数为抽烟目标检出。</div>
+    <div class="btns">
+      <button class="btn primary" onclick="closeDlg('dlg-smoke')">完成</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast">已保存</div>
+
+<script>
+const sliders = ["det_conf","min_person_h","spike","grip_frames","posture_window",
+                 "require_posture","smoke_target_conf","smoke_confirm_n"];
+const checks = {climb:"enable_climb", throw:"enable_throw", smoke:"enable_smoke"};
+let saveTimer = null, drawing = false;
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.opacity = 1;
+  setTimeout(()=> t.style.opacity = 0, 1200);
+}
+function closeDlg(id){ document.getElementById(id).classList.remove("show"); }
+
+function refreshTabUI(cfg){
+  for(const [k,key] of Object.entries(checks)){
+    const tab = document.getElementById("tab-"+k);
+    tab.classList.toggle("on", !!cfg[key]);
+    tab.classList.toggle("active", !!cfg[key]);
+  }
+}
+
+function syncUI(cfg){
+  sliders.forEach(k=>{
+    const el = document.getElementById(k);
+    if(el){ el.value = cfg[k]; document.getElementById("v-"+k).textContent = cfg[k]; }
+  });
+  ["det_conf","min_person_h"].forEach(k=>{
+    const el2 = document.getElementById(k+"2");
+    if(el2){ el2.value = cfg[k]; document.getElementById("v-"+k+"2").textContent = cfg[k]; }
+  });
+  refreshTabUI(cfg);
+  const swEl = document.getElementById("showBoxesSw");
+  swEl.classList.toggle("on", cfg.show_boxes !== false);
+}
+document.getElementById("showBoxesSw").addEventListener("click", ()=>{
+  const swEl = document.getElementById("showBoxesSw");
+  const next = !swEl.classList.contains("on");
+  swEl.classList.toggle("on", next);
+  fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({show_boxes: next})})
+    .then(()=>toast(next ? "标定框已显示" : "标定框已隐藏（判定不受影响）"));
+});
+
+function pushCfg(){
+  const body = {};
+  sliders.forEach(k=> body[k] = parseFloat(document.getElementById(k).value));
+  fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)}).then(()=>toast("参数已保存并生效"));
+}
+function pushSwitch(key, val){
+  const body = {}; body[key] = val;
+  fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)}).then(()=>toast(val?"模块已开启":"模块已关闭"));
+}
+
+sliders.forEach(k=>{
+  const el = document.getElementById(k);
+  el.addEventListener("input", ()=>{
+    document.getElementById("v-"+k).textContent = el.value;
+    if(k==="det_conf"||k==="min_person_h"){
+      document.getElementById(k+"2").value = el.value;
+      document.getElementById("v-"+k+"2").textContent = el.value;
+    }
+    clearTimeout(saveTimer); saveTimer = setTimeout(pushCfg, 600);
+  });
+});
+["det_conf2","min_person_h2"].forEach(k2=>{
+  const el = document.getElementById(k2);
+  el.addEventListener("input", ()=>{
+    const base = k2.slice(0,-1);
+    document.getElementById("v-"+k2).textContent = el.value;
+    document.getElementById(base).value = el.value;
+    document.getElementById("v-"+base).textContent = el.value;
+    clearTimeout(saveTimer); saveTimer = setTimeout(pushCfg, 600);
+  });
+});
+
+// 顶部模块tab:点主体=开关,点齿轮=设置
+for(const k of Object.keys(checks)){
+  const tab = document.getElementById("tab-"+k);
+  tab.addEventListener("click", ()=>{
+    const on = !tab.classList.contains("on");
+    pushSwitch(checks[k], on);
+    tab.classList.toggle("on", on); tab.classList.toggle("active", on);
+  });
+  tab.querySelector(".gear").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    document.getElementById("dlg-"+k).classList.add("show");
+    if(k==="climb") toast("提示：可在设置里清除黄框后，在画面上重新绘制");
+  });
+}
+
+// 画面放大/还原(画框模式时不触发)
+const stage = document.getElementById("stage");
+document.getElementById("video").addEventListener("click", ()=>{
+  if(drawing) return;
+  const full = !stage.classList.contains("full");
+  stage.classList.add("full"); document.body.classList.toggle("noright", full);
+  toast(full ? "已放大（再点画面还原）" : "已还原");
+});
+
+// ===== 网页画黄框 =====
+// 画框时canvas叠加层实时显示点/连线/闭合预览;坐标换算回图片原始分辨率上传,
+// 后端保存到climb_config.json并热加载。左键加点,右键撤销,双击完成。
+let drawPts = [];
+const video = document.getElementById("video");
+const dcv = document.getElementById("drawCanvas");
+const dctx = dcv.getContext("2d");
+
+function fitCanvas(){
+  const r = video.getBoundingClientRect();
+  const s = document.getElementById("stage").getBoundingClientRect();
+  dcv.width = s.width; dcv.height = s.height;
+  dcv.style.left = (r.left - s.left) + "px";
+  dcv.style.top = (r.top - s.top) + "px";
+  dcv.style.width = r.width + "px";
+  dcv.style.height = r.height + "px";
+  dcv._scaleX = video.naturalWidth / r.width;
+  dcv._scaleY = video.naturalHeight / r.height;
+  dcv._offX = r.left - s.left; dcv._offY = r.top - s.top;
+}
+window.addEventListener("resize", ()=>{ if(drawing) redraw(); });
+
+function toImgPt(e){
+  const r = video.getBoundingClientRect();
+  return [Math.round((e.clientX - r.left) * video.naturalWidth / r.width),
+          Math.round((e.clientY - r.top) * video.naturalHeight / r.height)];
+}
+function toScreenPt(p){
+  const r = video.getBoundingClientRect();
+  return [p[0] * r.width / video.naturalWidth + dcv._offX,
+          p[1] * r.height / video.naturalHeight + dcv._offY];
+}
+function redraw(){
+  if(!drawing) return;
+  fitCanvas();
+  dctx.clearRect(0, 0, dcv.width, dcv.height);
+  if(!drawPts.length) return;
+  dctx.strokeStyle = "#ffe27a"; dctx.fillStyle = "#ffe27a";
+  dctx.lineWidth = 2; dctx.setLineDash([]);
+  dctx.beginPath();
+  const p0 = toScreenPt(drawPts[0]);
+  dctx.moveTo(p0[0], p0[1]);
+  for(let i = 1; i < drawPts.length; i++){
+    const p = toScreenPt(drawPts[i]); dctx.lineTo(p[0], p[1]);
+  }
+  if(drawPts.length >= 3){                    // 闭合虚线预览
+    dctx.lineTo(p0[0], p0[1]); dctx.setLineDash([6, 5]);
+  }
+  dctx.stroke();
+  drawPts.forEach(p=>{                        // 顶点圆点+序号
+    const q = toScreenPt(p);
+    dctx.beginPath(); dctx.arc(q[0], q[1], 5, 0, 7); dctx.fill();
+  });
+  const a = toScreenPt(drawPts[0]), b = toScreenPt(drawPts[1] || drawPts[0]);
+  dctx.strokeStyle = "#ff5252"; dctx.lineWidth = 4; dctx.setLineDash([]);
+  dctx.beginPath(); dctx.moveTo(a[0], a[1]); dctx.lineTo(b[0], b[1]); dctx.stroke();
+}
+
+function startDraw(){
+  drawing = true; drawPts = [];
+  document.getElementById("drawHint").style.display = "block";
+  dcv.style.display = "block";
+  redraw();
+  toast("画框模式：左键加点 / 右键撤销 / 双击完成");
+}
+function stopDrawUI(){
+  drawing = false;
+  document.getElementById("drawHint").style.display = "none";
+  dcv.style.display = "none";
+  dctx.clearRect(0, 0, dcv.width, dcv.height);
+}
+function clearBoxes(){
+  fetch("/api/boxes",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({boxes:[]})}).then(()=>{
+    toast("已清除全部黄框"); closeDlg("dlg-climb");
+  });}
+
+video.addEventListener("click", (e)=>{ if(drawing) e.stopImmediatePropagation(); }, true);
+stage.addEventListener("mousedown", (e)=>{
+  if(!drawing || e.target !== video) return;
+  if(e.button === 2){ drawPts.pop(); redraw(); toast("撤销一点"); return; }
+  if(e.button !== 0) return;
+  drawPts.push(toImgPt(e));
+  redraw();
+  toast(`已加第 ${drawPts.length} 点`);
+});
+stage.addEventListener("contextmenu", (e)=>{ if(drawing) e.preventDefault(); });
+stage.addEventListener("dblclick", (e)=>{
+  if(!drawing) return;
+  if(drawPts.length < 3){ toast("至少3个点才能成框"); return; }
+  stopDrawUI();
+  fetch("/api/boxes",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({boxes:[drawPts], append:true})})
+    .then(r=>r.json()).then(d=>toast(d.ok ? `黄框已保存并生效（当前共${d.count}个）` : "保存失败"));
+});
+
+// 告警/状态轮询
+const typeName = {climb:"翻越告警", climb_warn:"攀爬预警", throw:"抛掷动作",
+                  smoking:"抽烟违规"};
+async function pollAlerts(){
+  try{
+    const r = await fetch("/api/alerts");
+    const list = await r.json();
+    const box = document.getElementById("alerts");
+    if(!list.length){ box.innerHTML = '<div class="empty">暂无告警</div>'; return; }
+    box.innerHTML = list.map(a=>`
+      <div class="alert ${a.type}">
+        <img src="/alerts/${a.img}" onclick="window.open('/alerts/${a.img}')" alt="">
+        <div class="meta"><div class="n">${typeName[a.type]||a.type}</div>
+          <div>${a.text}</div><div class="t">${a.time}</div></div>
+      </div>`).join("");
+  }catch(e){}
+}
+async function pollStatus(){
+  try{
+    const s = await (await fetch("/api/status")).json();
+    document.getElementById("dot").className = "dot " + (s.alive ? "on" : "off");
+  }catch(e){ document.getElementById("dot").className = "dot off"; }
+}
+
+fetch("/api/config").then(r=>r.json()).then(syncUI);
+pollAlerts(); setInterval(pollAlerts, 2000);
+pollStatus(); setInterval(pollStatus, 2000);
+</script>
+</body>
+</html>

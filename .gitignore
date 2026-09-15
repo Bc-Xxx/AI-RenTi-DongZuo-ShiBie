@@ -1,0 +1,21 @@
+# 模型权重(去官方release下载,见README)
+*.pt
+*.onnx
+*.engine
+
+# 告警截图与快照
+alerts/
+climb_shots/
+snapshot_*.jpg
+smoking_alert_*.jpg
+*.mp4
+
+# 运行日志
+calibration_log.csv
+_repo_log.txt
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.idea/
