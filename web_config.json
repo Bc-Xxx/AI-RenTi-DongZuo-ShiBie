@@ -13,19 +13,33 @@
     "enable_smoke": "抽烟检测模块开关。需smoke_best.pt权重文件和app.py同目录,文件缺失时模块自动跳过",
     "smoke_target_conf": "抽烟-目标置信度阈值(0.1~0.6)。烟头/香烟目标小且模糊,过高会漏检,过低误报多;误报靠smoke_confirm_n连续确认压制",
     "smoke_confirm_n": "抽烟-连续确认帧数。抽烟目标连续N帧关联到同一个人身上才告警。误报多→调大;检出慢→调小",
-    "show_boxes": "画面上是否显示黄框/墙头线叠加。true显示/false隐藏。只影响显示,隐藏后判定照常工作"
+    "show_boxes": "画面上是否显示黄框/墙头线叠加。true显示/false隐藏。只影响显示,隐藏后判定照常工作",
+    "cameras": "摄像头列表(网页顶部相机标签/右上角＋管理)。每个相机独立保存:名称/取流地址/检测参数/攀爬黄框。取流地址可填rtsp地址、0(USB摄像头)或本地视频文件路径(演示用)",
+    "active_cam": "当前使用的相机id。网页点相机标签即时切换,不用重启"
   },
-  "rtsp": "rtsp://<用户名>:<密码>@<相机IP>:554/Streaming/Channels/301",
   "enable_climb": true,
   "enable_throw": true,
+  "enable_band": true,
   "enable_smoke": true,
-  "det_conf": 0.5,
-  "min_person_h": 50,
-  "spike": 45.0,
-  "grip_frames": 6,
-  "posture_window": 6.0,
-  "require_posture": 1,
-  "smoke_target_conf": 0.3,
-  "smoke_confirm_n": 8,
-  "show_boxes": false
+  "show_boxes": true,
+  "cameras": [
+    {
+      "id": "cam1",
+      "name": "相机1",
+      "rtsp": "rtsp://<用户名>:<密码>@<相机IP>:554/Streaming/Channels/301",
+      "params": {
+        "det_conf": 0.5,
+        "min_person_h": 50,
+        "spike": 45.0,
+        "grip_frames": 6,
+        "posture_window": 6.0,
+        "require_posture": 1,
+        "smoke_target_conf": 0.3,
+        "smoke_confirm_n": 8,
+        "band_min_area": 30,
+        "band_speed": 15
+      }
+    }
+  ],
+  "active_cam": "cam1"
 }
